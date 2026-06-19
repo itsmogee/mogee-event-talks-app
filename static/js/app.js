@@ -23,6 +23,7 @@ const timelineContainer = document.getElementById('timeline-container');
 const notesTimeline = document.getElementById('notes-timeline');
 const loadingState = document.getElementById('loading-state');
 const emptyState = document.getElementById('empty-state');
+const toastContainer = document.getElementById('toast-container');
 
 // Modal Elements
 const tweetModal = document.getElementById('tweet-modal');
@@ -153,12 +154,21 @@ async function fetchReleases(forceRefresh = false) {
             calculateStats();
             filterAndRender();
             btnExport.style.display = 'inline-flex';
+
+            if (forceRefresh) {
+                const count = data.entries.reduce((sum, e) => sum + e.items.length, 0);
+                showToast('success', 'Feed Refreshed', `Loaded ${count} release notes from Google Cloud.`);
+            } else if (data.source === 'cache') {
+                showToast('info', 'Serving from Cache', 'Showing cached results. Click Refresh to fetch latest.');
+            }
         } else {
             showErrorState(data.error || 'Failed parsing feed data.');
+            showToast('error', 'Sync Failed', data.error || 'Could not parse the release notes feed.');
         }
     } catch (error) {
         console.error('Fetch error:', error);
         showErrorState(error.message || 'Network communication error.');
+        showToast('error', 'Network Error', error.message || 'Could not reach the release notes feed.');
     } finally {
         state.isFetching = false;
         spinner.classList.remove('spinning');
@@ -550,7 +560,7 @@ function postToTwitter() {
 // EXPORT FILTERED RELEASES TO CSV
 function exportToCSV() {
     if (!state.filteredItems || state.filteredItems.length === 0) {
-        alert("No items available to export.");
+        showToast('warning', 'Nothing to Export', 'No release notes match the current filters.');
         return;
     }
     
@@ -584,6 +594,9 @@ function exportToCSV() {
     document.body.appendChild(link);
     link.click();
     document.body.removeChild(link);
+
+    const total = state.filteredItems.reduce((sum, d) => sum + d.items.length, 0);
+    showToast('success', 'CSV Exported', `Saved ${total} release note${total !== 1 ? 's' : ''} to your downloads.`);
 }
 
 // INITIALIZE COLOR THEME PREFERENCE
@@ -620,4 +633,41 @@ function toggleTheme() {
         iconMoon.style.display = 'block';
         iconSun.style.display = 'none';
     }
+}
+
+// TOAST NOTIFICATION ENGINE
+// type: 'success' | 'error' | 'warning' | 'info'
+function showToast(type = 'info', title, message, duration = 4000) {
+    const icons = {
+        success: `<svg viewBox="0 0 24 24" width="20" height="20" stroke="currentColor" stroke-width="2.5" fill="none"><polyline points="20 6 9 17 4 12"/></svg>`,
+        error:   `<svg viewBox="0 0 24 24" width="20" height="20" stroke="currentColor" stroke-width="2" fill="none"><circle cx="12" cy="12" r="10"/><line x1="15" y1="9" x2="9" y2="15"/><line x1="9" y1="9" x2="15" y2="15"/></svg>`,
+        warning: `<svg viewBox="0 0 24 24" width="20" height="20" stroke="currentColor" stroke-width="2" fill="none"><path d="M10.29 3.86L1.82 18a2 2 0 0 0 1.71 3h16.94a2 2 0 0 0 1.71-3L13.71 3.86a2 2 0 0 0-3.42 0z"/><line x1="12" y1="9" x2="12" y2="13"/><line x1="12" y1="17" x2="12.01" y2="17"/></svg>`,
+        info:    `<svg viewBox="0 0 24 24" width="20" height="20" stroke="currentColor" stroke-width="2" fill="none"><circle cx="12" cy="12" r="10"/><line x1="12" y1="16" x2="12" y2="12"/><line x1="12" y1="8" x2="12.01" y2="8"/></svg>`
+    };
+
+    const toast = document.createElement('div');
+    toast.className = `toast ${type}`;
+    toast.setAttribute('role', 'alert');
+    toast.setAttribute('aria-live', 'assertive');
+    toast.innerHTML = `
+        <div class="toast-content">
+            <span class="toast-icon">${icons[type]}</span>
+            <div>
+                <strong style="display:block;font-size:0.9rem;margin-bottom:0.1rem;">${title}</strong>
+                <span style="font-size:0.82rem;opacity:0.8;font-weight:400;">${message}</span>
+            </div>
+        </div>
+        <button class="toast-close" aria-label="Dismiss">&times;</button>
+    `;
+
+    const dismiss = () => {
+        toast.classList.add('dismissing');
+        toast.addEventListener('animationend', () => toast.remove(), { once: true });
+    };
+
+    toast.querySelector('.toast-close').addEventListener('click', dismiss);
+    toastContainer.appendChild(toast);
+
+    // Auto-dismiss after duration
+    setTimeout(dismiss, duration);
 }
