@@ -1,0 +1,1 @@
+# mogee-event-talks-app
