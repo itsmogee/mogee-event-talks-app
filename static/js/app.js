@@ -12,6 +12,7 @@ let state = {
 // DOM ELEMENTS
 const btnRefresh = document.getElementById('btn-refresh');
 const btnExport = document.getElementById('btn-export');
+const themeToggle = document.getElementById('theme-toggle');
 const spinner = document.getElementById('spinner');
 const statusBadge = document.getElementById('status-badge');
 const lastUpdatedText = document.getElementById('last-updated');
@@ -42,6 +43,7 @@ const statTotal = document.getElementById('stat-total');
 
 // INITIALIZE APP
 document.addEventListener('DOMContentLoaded', () => {
+    initTheme();
     fetchReleases(false);
     setupEventListeners();
     initProgressRing();
@@ -58,6 +60,9 @@ function setupEventListeners() {
 
     // Export to CSV
     btnExport.addEventListener('click', exportToCSV);
+
+    // Toggle Color Theme
+    themeToggle.addEventListener('click', toggleTheme);
 
     // Search input
     searchInput.addEventListener('input', (e) => {
@@ -579,4 +584,40 @@ function exportToCSV() {
     document.body.appendChild(link);
     link.click();
     document.body.removeChild(link);
+}
+
+// INITIALIZE COLOR THEME PREFERENCE
+function initTheme() {
+    const savedTheme = localStorage.getItem('theme');
+    const systemPrefersLight = window.matchMedia('(prefers-color-scheme: light)').matches;
+    
+    const iconMoon = themeToggle.querySelector('.icon-moon');
+    const iconSun = themeToggle.querySelector('.icon-sun');
+    
+    if (savedTheme === 'light' || (!savedTheme && systemPrefersLight)) {
+        document.body.classList.add('light-theme');
+        iconMoon.style.display = 'none';
+        iconSun.style.display = 'block';
+    } else {
+        document.body.classList.remove('light-theme');
+        iconMoon.style.display = 'block';
+        iconSun.style.display = 'none';
+    }
+}
+
+// TOGGLE THEME ROUTINE
+function toggleTheme() {
+    const isLight = document.body.classList.toggle('light-theme');
+    localStorage.setItem('theme', isLight ? 'light' : 'dark');
+    
+    const iconMoon = themeToggle.querySelector('.icon-moon');
+    const iconSun = themeToggle.querySelector('.icon-sun');
+    
+    if (isLight) {
+        iconMoon.style.display = 'none';
+        iconSun.style.display = 'block';
+    } else {
+        iconMoon.style.display = 'block';
+        iconSun.style.display = 'none';
+    }
 }
