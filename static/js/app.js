@@ -11,6 +11,7 @@ let state = {
 
 // DOM ELEMENTS
 const btnRefresh = document.getElementById('btn-refresh');
+const btnExport = document.getElementById('btn-export');
 const spinner = document.getElementById('spinner');
 const statusBadge = document.getElementById('status-badge');
 const lastUpdatedText = document.getElementById('last-updated');
@@ -54,6 +55,9 @@ function setupEventListeners() {
             fetchReleases(true);
         }
     });
+
+    // Export to CSV
+    btnExport.addEventListener('click', exportToCSV);
 
     // Search input
     searchInput.addEventListener('input', (e) => {
@@ -143,6 +147,7 @@ async function fetchReleases(forceRefresh = false) {
             updateLastFetchedTime();
             calculateStats();
             filterAndRender();
+            btnExport.style.display = 'inline-flex';
         } else {
             showErrorState(data.error || 'Failed parsing feed data.');
         }
@@ -257,6 +262,7 @@ function filterAndRender() {
         }
     });
 
+    state.filteredItems = allFilteredDays;
     renderTimeline(allFilteredDays);
 }
 
@@ -340,6 +346,39 @@ function renderTimeline(days) {
             const cardActions = document.createElement('div');
             cardActions.className = 'card-actions';
             
+            // Copy to Clipboard Action
+            const btnCopy = document.createElement('button');
+            btnCopy.className = 'card-action-btn copy-btn';
+            btnCopy.title = 'Copy text to clipboard';
+            btnCopy.innerHTML = `
+                <svg viewBox="0 0 24 24" width="16" height="16" stroke="currentColor" stroke-width="2" fill="none" stroke-linecap="round" stroke-linejoin="round">
+                    <rect x="9" y="9" width="13" height="13" rx="2" ry="2"/>
+                    <path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/>
+                </svg>
+            `;
+            btnCopy.addEventListener('click', (e) => {
+                e.stopPropagation();
+                selectCard(item.id);
+                navigator.clipboard.writeText(item.plain_text).then(() => {
+                    btnCopy.innerHTML = `
+                        <svg viewBox="0 0 24 24" width="16" height="16" stroke="var(--color-feature)" stroke-width="2.5" fill="none">
+                            <polyline points="20 6 9 17 4 12"/>
+                        </svg>
+                    `;
+                    btnCopy.title = 'Copied!';
+                    setTimeout(() => {
+                        btnCopy.innerHTML = `
+                            <svg viewBox="0 0 24 24" width="16" height="16" stroke="currentColor" stroke-width="2" fill="none" stroke-linecap="round" stroke-linejoin="round">
+                                <rect x="9" y="9" width="13" height="13" rx="2" ry="2"/>
+                                <path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/>
+                            </svg>
+                        `;
+                        btnCopy.title = 'Copy text to clipboard';
+                    }, 2000);
+                }).catch(err => console.error('Failed to copy:', err));
+            });
+            cardActions.appendChild(btnCopy);
+            
             const btnTweet = document.createElement('button');
             btnTweet.className = 'card-action-btn tweet-btn';
             btnTweet.title = 'Tweet about this update';
@@ -350,7 +389,8 @@ function renderTimeline(days) {
             `;
             
             // Attach Tweet Compose action
-            btnTweet.addEventListener('click', () => {
+            btnTweet.addEventListener('click', (e) => {
+                e.stopPropagation();
                 selectCard(item.id);
                 openTweetComposer(item, day.date);
             });
@@ -500,4 +540,43 @@ function postToTwitter() {
     
     window.open(twitterUrl, '_blank', 'noopener,noreferrer');
     closeTweetModal();
+}
+
+// EXPORT FILTERED RELEASES TO CSV
+function exportToCSV() {
+    if (!state.filteredItems || state.filteredItems.length === 0) {
+        alert("No items available to export.");
+        return;
+    }
+    
+    // CSV Header row
+    let csvContent = '"Date","Type","Description","Link"\n';
+    
+    // Loop through days and items
+    state.filteredItems.forEach(day => {
+        day.items.forEach(item => {
+            // Escape double quotes inside values by doubling them
+            const cleanDesc = item.plain_text.replace(/"/g, '""');
+            const cleanType = item.type.replace(/"/g, '""');
+            const cleanDate = day.date.replace(/"/g, '""');
+            const cleanLink = item.link.replace(/"/g, '""');
+            
+            csvContent += `"${cleanDate}","${cleanType}","${cleanDesc}","${cleanLink}"\n`;
+        });
+    });
+    
+    // Download trigger
+    const blob = new Blob([csvContent], { type: 'text/csv;charset=utf-8;' });
+    const url = URL.createObjectURL(blob);
+    const link = document.createElement("a");
+    
+    const now = new Date();
+    const dateStr = now.toISOString().split('T')[0];
+    
+    link.setAttribute("href", url);
+    link.setAttribute("download", `bigquery_release_notes_${dateStr}.csv`);
+    link.style.visibility = 'hidden';
+    document.body.appendChild(link);
+    link.click();
+    document.body.removeChild(link);
 }
